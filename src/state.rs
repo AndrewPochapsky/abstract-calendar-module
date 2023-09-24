@@ -17,6 +17,7 @@ pub struct Meeting {
     pub start_time: i64,
     pub end_time: i64,
     pub requester: Addr,
+    pub amount_staked: Uint128,
 }
 
 // unix start-time of the day -> vector of meetings in that day.

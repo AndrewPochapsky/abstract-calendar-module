@@ -1,6 +1,6 @@
 use abstract_sdk::features::AbstractResponse;
 use chrono::{DateTime, FixedOffset, LocalResult, NaiveTime, TimeZone, Timelike};
-use cosmwasm_std::{DepsMut, Env, Int64, MessageInfo, Response, Uint128};
+use cosmwasm_std::{BankMsg, Coin, DepsMut, Env, Int64, MessageInfo, Response, Uint128};
 use cw_utils::must_pay;
 
 use crate::contract::{App, AppResult};
@@ -8,6 +8,12 @@ use crate::contract::{App, AppResult};
 use crate::error::AppError;
 use crate::msg::AppExecuteMsg;
 use crate::state::{Meeting, CALENDAR, CONFIG};
+
+enum StakeAction {
+    Return,
+    FullSlash,
+    PartialSlash { minutes_late: u32 },
+}
 
 pub fn execute_handler(
     deps: DepsMut,
@@ -21,6 +27,43 @@ pub fn execute_handler(
             start_time,
             end_time,
         } => request_meeting(deps, info, app, env, start_time, end_time),
+        AppExecuteMsg::SlashFullStake {
+            day_datetime,
+            meeting_index,
+        } => handle_stake(
+            deps,
+            info,
+            app,
+            env,
+            day_datetime,
+            meeting_index,
+            StakeAction::FullSlash,
+        ),
+        AppExecuteMsg::SlashPartialStake {
+            day_datetime,
+            meeting_index,
+            minutes_late,
+        } => handle_stake(
+            deps,
+            info,
+            app,
+            env,
+            day_datetime,
+            meeting_index,
+            StakeAction::PartialSlash { minutes_late },
+        ),
+        AppExecuteMsg::ReturnStake {
+            day_datetime,
+            meeting_index,
+        } => handle_stake(
+            deps,
+            info,
+            app,
+            env,
+            day_datetime,
+            meeting_index,
+            StakeAction::Return,
+        ),
     }
 }
 
@@ -117,6 +160,7 @@ fn request_meeting(
         start_time: meeting_start_timestamp,
         end_time: meeting_end_timestamp,
         requester: info.sender,
+        amount_staked: amount_sent,
     });
 
     CALENDAR.save(deps.storage, start_of_day_timestamp, &existing_meetings)?;
@@ -127,6 +171,84 @@ fn request_meeting(
             .add_attribute("meeting_end_time", meeting_end_timestamp.to_string()),
         "request_meeting",
     ))
+}
+
+fn handle_stake(
+    deps: DepsMut,
+    info: MessageInfo,
+    app: App,
+    env: Env,
+    day_datetime: Int64,
+    meeting_index: u32,
+    stake_action: StakeAction,
+) -> AppResult {
+    app.admin.assert_admin(deps.as_ref(), &info.sender)?;
+
+    let config = CONFIG.load(deps.storage)?;
+
+    let meetings = CALENDAR.may_load(deps.storage, day_datetime.i64())?;
+    if meetings.is_none() {
+        return Err(AppError::NoMeetingsAtGivenDayDateTime {});
+    }
+    let mut meetings = meetings.unwrap();
+    if meeting_index as usize >= meetings.len() {
+        return Err(AppError::MeetingDoesNotExist {});
+    }
+    let meeting: &mut Meeting = meetings.get_mut(meeting_index as usize).unwrap();
+
+    if (env.block.time.seconds() as i64) <= meeting.end_time {
+        return Err(AppError::MeetingNotFinishedYet {});
+    }
+
+    let amount_staked = meeting.amount_staked;
+    let requester = meeting.requester.to_string();
+    if amount_staked.is_zero() {
+        return Err(AppError::StakeAlreadyHandled {});
+    }
+
+    meeting.amount_staked = Uint128::zero();
+
+    let response = match stake_action {
+        StakeAction::Return => app.tag_response(
+            Response::default().add_message(BankMsg::Send {
+                to_address: requester,
+                amount: vec![Coin::new(amount_staked.into(), config.denom)],
+            }),
+            "return_stake",
+        ),
+        StakeAction::FullSlash => app.tag_response(
+            Response::default().add_message(BankMsg::Send {
+                to_address: app.admin.get(deps.as_ref())?.unwrap().to_string(),
+                amount: vec![Coin::new(amount_staked.into(), config.denom)],
+            }),
+            "full_slash",
+        ),
+        StakeAction::PartialSlash { minutes_late } => {
+            let meeting_duration_in_minutes: i64 = (meeting.end_time - meeting.start_time) / 60;
+            let amount_to_slash =
+                amount_staked.multiply_ratio(minutes_late, meeting_duration_in_minutes as u128);
+
+            app.tag_response(
+                Response::default()
+                    .add_message(BankMsg::Send {
+                        to_address: requester,
+                        amount: vec![Coin::new(
+                            (amount_staked - amount_to_slash).into(),
+                            config.denom.clone(),
+                        )],
+                    })
+                    .add_message(BankMsg::Send {
+                        to_address: app.admin.get(deps.as_ref())?.unwrap().to_string(),
+                        amount: vec![Coin::new(amount_to_slash.into(), config.denom)],
+                    }),
+                "partial_slash",
+            )
+        }
+    };
+
+    CALENDAR.save(deps.storage, day_datetime.i64(), &meetings)?;
+
+    Ok(response)
 }
 
 fn get_date_time(timezone: FixedOffset, timestamp: Int64) -> AppResult<DateTime<FixedOffset>> {

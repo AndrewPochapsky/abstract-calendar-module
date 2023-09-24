@@ -18,6 +18,8 @@ use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 const ADMIN: &str = "admin";
 const DENOM: &str = "stake";
 
+const INITIAL_BALANCE: u128 = 10_000;
+
 fn request_meeting_with_start_time(
     day_datetime: DateTime<FixedOffset>,
     start_time: Time,
@@ -94,9 +96,9 @@ fn setup() -> anyhow::Result<(
     let mock = Mock::new(&sender);
 
     // set balances
-    mock.set_balance(&Addr::unchecked("sender1"), coins(10_000, DENOM))?;
-    mock.set_balance(&Addr::unchecked("sender2"), coins(10_000, DENOM))?;
-    mock.set_balance(&Addr::unchecked("sender"), coins(10_000, DENOM))?;
+    mock.set_balance(&Addr::unchecked("sender1"), coins(INITIAL_BALANCE, DENOM))?;
+    mock.set_balance(&Addr::unchecked("sender2"), coins(INITIAL_BALANCE, DENOM))?;
+    mock.set_balance(&Addr::unchecked("sender"), coins(INITIAL_BALANCE, DENOM))?;
 
     // Construct the contract interface
     let app = AppInterface::new(APP_ID, mock.clone());
@@ -199,7 +201,8 @@ fn request_meeting_at_start_of_day() -> anyhow::Result<()> {
         vec![Meeting {
             start_time: meeting_start_datetime.timestamp(),
             end_time: meeting_end_datetime.timestamp(),
-            requester: sender
+            requester: sender,
+            amount_staked: Uint128::from(60u128),
         }],
         meetings_response.meetings
     );
@@ -240,7 +243,8 @@ fn request_meeting_at_end_of_day() -> anyhow::Result<()> {
         vec![Meeting {
             start_time: meeting_start_datetime.timestamp(),
             end_time: meeting_end_datetime.timestamp(),
-            requester: sender
+            requester: sender,
+            amount_staked: Uint128::from(60u128),
         }],
         meetings_response.meetings
     );
@@ -298,12 +302,14 @@ fn request_multiple_meetings_on_same_day() -> anyhow::Result<()> {
             Meeting {
                 start_time: meeting_start_datetime1.timestamp(),
                 end_time: meeting_end_datetime1.timestamp(),
-                requester: sender1
+                requester: sender1,
+                amount_staked: Uint128::from(60u128),
             },
             Meeting {
                 start_time: meeting_start_datetime2.timestamp(),
                 end_time: meeting_end_datetime2.timestamp(),
-                requester: sender2
+                requester: sender2,
+                amount_staked: Uint128::from(60u128),
             }
         ],
         meetings_response.meetings
@@ -372,12 +378,14 @@ fn request_back_to_back_meetings_on_left() -> anyhow::Result<()> {
             Meeting {
                 start_time: meeting_start_datetime1.timestamp(),
                 end_time: meeting_end_datetime1.timestamp(),
-                requester: sender1
+                requester: sender1,
+                amount_staked: Uint128::from(60u128),
             },
             Meeting {
                 start_time: meeting_start_datetime2.timestamp(),
                 end_time: meeting_end_datetime2.timestamp(),
-                requester: sender2
+                requester: sender2,
+                amount_staked: Uint128::from(60u128),
             }
         ],
         meetings_response.meetings
@@ -446,12 +454,14 @@ fn request_back_to_back_meetings_on_right() -> anyhow::Result<()> {
             Meeting {
                 start_time: meeting_start_datetime1.timestamp(),
                 end_time: meeting_end_datetime1.timestamp(),
-                requester: sender1
+                requester: sender1,
+                amount_staked: Uint128::from(60u128),
             },
             Meeting {
                 start_time: meeting_start_datetime2.timestamp(),
                 end_time: meeting_end_datetime2.timestamp(),
-                requester: sender2
+                requester: sender2,
+                amount_staked: Uint128::from(60u128),
             }
         ],
         meetings_response.meetings
@@ -507,8 +517,9 @@ fn request_meetings_on_different_days() -> anyhow::Result<()> {
         vec![Meeting {
             start_time: meeting_start_datetime1.timestamp(),
             end_time: meeting_end_datetime1.timestamp(),
-            requester: sender1
-        },],
+            requester: sender1,
+            amount_staked: Uint128::from(60u128),
+        }],
         meetings_response1.meetings
     );
 
@@ -523,8 +534,9 @@ fn request_meetings_on_different_days() -> anyhow::Result<()> {
         vec![Meeting {
             start_time: meeting_start_datetime2.timestamp(),
             end_time: meeting_end_datetime2.timestamp(),
-            requester: sender2
-        },],
+            requester: sender2,
+            amount_staked: Uint128::from(60u128),
+        }],
         meetings_response2.meetings
     );
 
@@ -1001,6 +1013,181 @@ fn cannot_request_meeting_with_insufficient_funds() -> anyhow::Result<()> {
         }
         .to_string(),
         error.root_cause().to_string(),
+    );
+
+    Ok(())
+}
+
+#[test]
+fn slash_full_stake() -> anyhow::Result<()> {
+    // Set up the environment and contract
+    let (_account, _abstr, mut app, mock) = setup()?;
+    let block_info: BlockInfo = mock.block_info()?;
+
+    let config: ConfigResponse = app.config()?;
+
+    let timezone: FixedOffset = FixedOffset::east_opt(config.utc_offset).unwrap();
+    let current_datetime = timezone
+        .timestamp_opt(block_info.time.seconds() as i64, 0)
+        .unwrap();
+
+    let sender = Addr::unchecked("sender");
+    app.set_sender(&sender);
+
+    let (meeting_start_datetime, meeting_end_datetime) = request_meeting_with_start_time(
+        current_datetime.checked_add_days(Days::new(1)).unwrap(),
+        config.start_time,
+        app.clone(),
+    )?;
+
+    mock.wait_blocks(100000)?;
+
+    let day_datetime = meeting_start_datetime
+        .date()
+        .and_time(NaiveTime::default())
+        .timestamp();
+
+    // Not sure how to get this dynamically...
+    app.set_sender(&Addr::unchecked("contract2"));
+    app.slash_full_stake(day_datetime.into(), 0)?;
+
+    let meetings_response = app.meetings(day_datetime)?;
+
+    assert_eq!(
+        vec![Meeting {
+            start_time: meeting_start_datetime.timestamp(),
+            end_time: meeting_end_datetime.timestamp(),
+            requester: sender,
+            amount_staked: Uint128::zero(),
+        }],
+        meetings_response.meetings
+    );
+
+    assert_eq!(
+        Uint128::from(60u128),
+        mock.query_balance(&Addr::unchecked("contract2"), DENOM)?
+    );
+
+    Ok(())
+}
+
+#[test]
+fn return_stake() -> anyhow::Result<()> {
+    // Set up the environment and contract
+    let (_account, _abstr, mut app, mock) = setup()?;
+    let block_info: BlockInfo = mock.block_info()?;
+
+    let config: ConfigResponse = app.config()?;
+
+    let timezone: FixedOffset = FixedOffset::east_opt(config.utc_offset).unwrap();
+    let current_datetime = timezone
+        .timestamp_opt(block_info.time.seconds() as i64, 0)
+        .unwrap();
+
+    let sender = Addr::unchecked("sender");
+    app.set_sender(&sender);
+
+    let (meeting_start_datetime, meeting_end_datetime) = request_meeting_with_start_time(
+        current_datetime.checked_add_days(Days::new(1)).unwrap(),
+        config.start_time,
+        app.clone(),
+    )?;
+
+    assert_eq!(
+        Uint128::from(INITIAL_BALANCE - 60),
+        mock.query_balance(&sender, DENOM)?
+    );
+
+    mock.wait_blocks(100000)?;
+
+    let day_datetime = meeting_start_datetime
+        .date()
+        .and_time(NaiveTime::default())
+        .timestamp();
+
+    // Not sure how to get this dynamically...
+    app.set_sender(&Addr::unchecked("contract2"));
+    app.return_stake(day_datetime.into(), 0)?;
+
+    let meetings_response = app.meetings(day_datetime)?;
+
+    assert_eq!(
+        vec![Meeting {
+            start_time: meeting_start_datetime.timestamp(),
+            end_time: meeting_end_datetime.timestamp(),
+            requester: sender.clone(),
+            amount_staked: Uint128::zero(),
+        }],
+        meetings_response.meetings
+    );
+
+    assert_eq!(
+        Uint128::from(INITIAL_BALANCE),
+        mock.query_balance(&sender, DENOM)?
+    );
+
+    Ok(())
+}
+
+#[test]
+fn slash_partial_stake() -> anyhow::Result<()> {
+    // Set up the environment and contract
+    let (_account, _abstr, mut app, mock) = setup()?;
+    let block_info: BlockInfo = mock.block_info()?;
+
+    let config: ConfigResponse = app.config()?;
+
+    let timezone: FixedOffset = FixedOffset::east_opt(config.utc_offset).unwrap();
+    let current_datetime = timezone
+        .timestamp_opt(block_info.time.seconds() as i64, 0)
+        .unwrap();
+
+    let sender = Addr::unchecked("sender");
+    app.set_sender(&sender);
+
+    let (meeting_start_datetime, meeting_end_datetime) = request_meeting_with_start_time(
+        current_datetime.checked_add_days(Days::new(1)).unwrap(),
+        config.start_time,
+        app.clone(),
+    )?;
+
+    assert_eq!(
+        Uint128::from(INITIAL_BALANCE - 60),
+        mock.query_balance(&sender, DENOM)?
+    );
+
+    mock.wait_blocks(100000)?;
+
+    let day_datetime = meeting_start_datetime
+        .date()
+        .and_time(NaiveTime::default())
+        .timestamp();
+
+    // Not sure how to get this dynamically...
+    app.set_sender(&Addr::unchecked("contract2"));
+    // 20 minutes late for a 60 minute meeting
+    app.slash_partial_stake(day_datetime.into(), 0, 20)?;
+
+    let meetings_response = app.meetings(day_datetime)?;
+
+    assert_eq!(
+        vec![Meeting {
+            start_time: meeting_start_datetime.timestamp(),
+            end_time: meeting_end_datetime.timestamp(),
+            requester: sender.clone(),
+            amount_staked: Uint128::zero(),
+        }],
+        meetings_response.meetings
+    );
+
+    assert_eq!(
+        Uint128::from(INITIAL_BALANCE - 20),
+        mock.query_balance(&sender, DENOM)?
+    );
+
+    assert_eq!(
+        Uint128::from(20u128),
+        mock.query_balance(&Addr::unchecked("contract2"), DENOM)?
     );
 
     Ok(())

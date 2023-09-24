@@ -36,7 +36,23 @@ pub struct AppInstantiateMsg {
 #[cfg_attr(feature = "interface", derive(cw_orch::ExecuteFns))]
 #[cfg_attr(feature = "interface", impl_into(ExecuteMsg))]
 pub enum AppExecuteMsg {
-    RequestMeeting { start_time: Int64, end_time: Int64 },
+    RequestMeeting {
+        start_time: Int64,
+        end_time: Int64,
+    },
+    SlashFullStake {
+        day_datetime: Int64,
+        meeting_index: u32,
+    },
+    SlashPartialStake {
+        day_datetime: Int64,
+        meeting_index: u32,
+        minutes_late: u32,
+    },
+    ReturnStake {
+        day_datetime: Int64,
+        meeting_index: u32,
+    },
 }
 
 /// App query messages

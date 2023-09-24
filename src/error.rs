@@ -59,4 +59,16 @@ pub enum AppError {
 
     #[error("Invalid stack amount sent. Expected_amount: {expected_amount}")]
     InvalidStakeAmountSent { expected_amount: Uint128 },
+
+    #[error("No meetings at given day datetime")]
+    NoMeetingsAtGivenDayDateTime {},
+
+    #[error("Meeting does not exist")]
+    MeetingDoesNotExist {},
+
+    #[error("Meeting not finished yet")]
+    MeetingNotFinishedYet {},
+
+    #[error("Stake already handled")]
+    StakeAlreadyHandled {},
 }
