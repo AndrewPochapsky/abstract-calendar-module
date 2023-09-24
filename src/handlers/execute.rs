@@ -67,7 +67,6 @@ pub fn execute_handler(
     }
 }
 
-/// Update the configuration of the app
 fn request_meeting(
     deps: DepsMut,
     info: MessageInfo,
