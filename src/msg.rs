@@ -25,6 +25,7 @@ impl From<Time> for NaiveTime {
 #[cosmwasm_schema::cw_serde]
 pub struct AppInstantiateMsg {
     pub price_per_minute: Uint128,
+    pub denom: String,
     pub utc_offset: i32,
     pub start_time: Time,
     pub end_time: Time,

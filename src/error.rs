@@ -1,9 +1,10 @@
 use abstract_app::AppError as AbstractAppError;
 use abstract_core::AbstractError;
 use abstract_sdk::AbstractSdkError;
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint128};
 use cw_asset::AssetError;
 use cw_controllers::AdminError;
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]
@@ -26,6 +27,9 @@ pub enum AppError {
     #[error("{0}")]
     DappError(#[from] AbstractAppError),
 
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
+
     #[error("Start time must be in future")]
     StartTimeMustBeInFuture {},
 
@@ -45,5 +49,14 @@ pub enum AppError {
     InvalidTime {},
 
     #[error("Start and end time not on same day")]
-    StartAndEndTimeNotOnSameDay,
+    StartAndEndTimeNotOnSameDay {},
+
+    #[error("Start time not rounded to nearest minute")]
+    StartTimeNotRoundedToNearestMinute {},
+
+    #[error("End time not rounded to nearest minute")]
+    EndTimeNotRoundedToNearestMinute {},
+
+    #[error("Invalid stack amount sent. Expected_amount: {expected_amount}")]
+    InvalidStakeAmountSent { expected_amount: Uint128 },
 }

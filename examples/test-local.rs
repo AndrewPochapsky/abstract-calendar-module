@@ -63,6 +63,7 @@ fn main() -> anyhow::Result<()> {
         app,
         &AppInstantiateMsg {
             price_per_minute: Uint128::zero(),
+            denom: "ujunox".to_owned(),
             utc_offset: 0,
             start_time: Time { hour: 9, minute: 0 },
             end_time: Time {

@@ -1,6 +1,7 @@
 use abstract_sdk::features::AbstractResponse;
-use chrono::{DateTime, FixedOffset, LocalResult, NaiveTime, TimeZone};
-use cosmwasm_std::{DepsMut, Env, Int64, MessageInfo, Response};
+use chrono::{DateTime, FixedOffset, LocalResult, NaiveTime, TimeZone, Timelike};
+use cosmwasm_std::{DepsMut, Env, Int64, MessageInfo, Response, Uint128};
+use cw_utils::must_pay;
 
 use crate::contract::{App, AppResult};
 
@@ -33,6 +34,7 @@ fn request_meeting(
     meeting_end_time: Int64,
 ) -> AppResult {
     let config = CONFIG.load(deps.storage)?;
+    let amount_sent = must_pay(&info, &config.denom)?;
 
     let timezone: FixedOffset = FixedOffset::east_opt(config.utc_offset).unwrap();
     let meeting_start_datetime = get_date_time(timezone, meeting_start_time)?;
@@ -52,6 +54,14 @@ fn request_meeting(
         return Err(AppError::StartAndEndTimeNotOnSameDay {});
     }
 
+    if meeting_start_time.second() != 0 || meeting_start_time.nanosecond() != 0 {
+        return Err(AppError::StartTimeNotRoundedToNearestMinute {});
+    }
+
+    if meeting_end_time.second() != 0 || meeting_end_time.nanosecond() != 0 {
+        return Err(AppError::EndTimeNotRoundedToNearestMinute {});
+    }
+
     // Not 100% sure about this typecasting but the same is done in the cosmwasm doc example using
     // chrono so it should be fine.
     if (env.block.time.seconds() as i64) > meeting_start_timestamp {
@@ -68,6 +78,15 @@ fn request_meeting(
 
     if meeting_end_time < calendar_start_time || meeting_end_time > calendar_end_time {
         return Err(AppError::EndTimeDoesNotFallWithinCalendarBounds {});
+    }
+
+    // This number will be positive enforced by previous checks.
+    let duration_in_minutes: Uint128 =
+        Uint128::new((meeting_end_time - meeting_start_time).num_minutes() as u128);
+
+    let expected_amount = duration_in_minutes * config.price_per_minute;
+    if amount_sent != expected_amount {
+        return Err(AppError::InvalidStakeAmountSent { expected_amount });
     }
 
     // Get unix start date of the current day
