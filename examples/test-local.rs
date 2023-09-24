@@ -10,9 +10,10 @@ use abstract_core::objects::gov_type::GovernanceDetails;
 use abstract_interface::{Abstract, AppDeployer, VCExecFns};
 use app::{
     contract::{APP_ID, APP_VERSION},
-    msg::AppInstantiateMsg,
+    msg::{AppInstantiateMsg, Time},
     AppInterface,
 };
+use cosmwasm_std::Uint128;
 use cw_orch::{
     anyhow,
     deploy::Deploy,
@@ -58,7 +59,19 @@ fn main() -> anyhow::Result<()> {
     app.deploy(version)?;
 
     // Install app
-    account.install_app(app, &AppInstantiateMsg {}, None)?;
+    account.install_app(
+        app,
+        &AppInstantiateMsg {
+            price_per_minute: Uint128::zero(),
+            utc_offset: 0,
+            start_time: Time { hour: 9, minute: 0 },
+            end_time: Time {
+                hour: 17,
+                minute: 0,
+            },
+        },
+        None,
+    )?;
 
     assert_that!(account.manager.is_module_installed(APP_ID).unwrap()).is_true();
     Ok(())

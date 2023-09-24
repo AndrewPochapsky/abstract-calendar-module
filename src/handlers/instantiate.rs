@@ -7,14 +7,19 @@ use crate::state::{Config, CONFIG};
 pub fn instantiate_handler(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
-    _app: App,
-    _msg: AppInstantiateMsg,
+    info: MessageInfo,
+    app: App,
+    msg: AppInstantiateMsg,
 ) -> AppResult {
-    let config: Config = Config {};
+    let config: Config = Config {
+        price_per_minute: msg.price_per_minute,
+        utc_offset: msg.utc_offset,
+        start_time: msg.start_time,
+        end_time: msg.end_time,
+    };
 
     CONFIG.save(deps.storage, &config)?;
+    app.admin.set(deps, Some(info.sender))?;
 
-    // Example instantiation that doesn't do anything
     Ok(Response::new())
 }

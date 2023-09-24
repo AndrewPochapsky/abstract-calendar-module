@@ -25,4 +25,25 @@ pub enum AppError {
 
     #[error("{0}")]
     DappError(#[from] AbstractAppError),
+
+    #[error("Start time must be in future")]
+    StartTimeMustBeInFuture {},
+
+    #[error("Start time does not fall within calendar bounds")]
+    StartTimeDoesNotFallWithinCalendarBounds {},
+
+    #[error("End time does not fall within calendar bounds")]
+    EndTimeDoesNotFallWithinCalendarBounds {},
+
+    #[error("End time must be after start time")]
+    EndTimeMustBeAfterStartTime {},
+
+    #[error("Meeting conflict exists")]
+    MeetingConflictExists {},
+
+    #[error("Invalid time")]
+    InvalidTime {},
+
+    #[error("Start and end time not on same day")]
+    StartAndEndTimeNotOnSameDay,
 }
