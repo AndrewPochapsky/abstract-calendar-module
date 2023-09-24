@@ -223,7 +223,12 @@ fn handle_stake(
             "full_slash",
         ),
         StakeAction::PartialSlash { minutes_late } => {
-            let meeting_duration_in_minutes: i64 = (meeting.end_time - meeting.start_time) / 60;
+            // Cast should be safe given we cannot have a meeting longer than 24 hours.
+            let meeting_duration_in_minutes: u32 =
+                ((meeting.end_time - meeting.start_time) / 60) as u32;
+            if minutes_late > meeting_duration_in_minutes {
+                return Err(AppError::MinutesLateCannotExceedDurationOfMeeting {});
+            }
             let amount_to_slash =
                 amount_staked.multiply_ratio(minutes_late, meeting_duration_in_minutes as u128);
 

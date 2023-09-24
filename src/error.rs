@@ -71,4 +71,7 @@ pub enum AppError {
 
     #[error("Stake already handled")]
     StakeAlreadyHandled {},
+
+    #[error("Minutes late cannot exceed duration of meeting")]
+    MinutesLateCannotExceedDurationOfMeeting {},
 }
