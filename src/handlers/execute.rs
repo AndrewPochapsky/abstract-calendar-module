@@ -274,15 +274,18 @@ fn update_config(
 ) -> AppResult {
     app.admin.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
+    let mut attrs = vec![];
     if let Some(price_per_minute) = price_per_minute {
         config.price_per_minute = price_per_minute;
+        attrs.push(("price_per_minute", price_per_minute.to_string()));
     }
-    if let Some(denom) = denom {
-        let denom = resolve_native_ans_denom(deps.as_ref(), &app, denom)?;
-        config.denom = denom
+    if let Some(unresolved) = denom {
+        let denom = resolve_native_ans_denom(deps.as_ref(), &app, unresolved.clone())?;
+        config.denom = denom;
+        attrs.push(("denom", unresolved.to_string()));
     }
     CONFIG.save(deps.storage, &config)?;
-    Ok(app.tag_response(Response::new(), "update_config"))
+    Ok(app.custom_tag_response(Response::new(), "update_config", attrs))
 }
 
 pub fn resolve_native_ans_denom(deps: Deps, app: &App, denom: AssetEntry) -> AppResult<String> {
