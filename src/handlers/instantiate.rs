@@ -1,8 +1,13 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdError};
+use cw_asset::AssetInfoBase;
 
 use crate::contract::{App, AppResult};
 use crate::msg::AppInstantiateMsg;
 use crate::state::{Config, CONFIG};
+use abstract_sdk::Resolve;
+use abstract_sdk::features::AbstractNameService;
+
+use super::execute::resolve_native_ans_denom;
 
 pub fn instantiate_handler(
     deps: DepsMut,
@@ -11,16 +16,17 @@ pub fn instantiate_handler(
     app: App,
     msg: AppInstantiateMsg,
 ) -> AppResult {
+    let denom = resolve_native_ans_denom(deps.as_ref(), &app, msg.denom)?;
+
     let config: Config = Config {
         price_per_minute: msg.price_per_minute,
-        denom: msg.denom,
+        denom,
         utc_offset: msg.utc_offset,
         start_time: msg.start_time,
         end_time: msg.end_time,
     };
 
     CONFIG.save(deps.storage, &config)?;
-    app.admin.set(deps, Some(info.sender))?;
 
     Ok(Response::new())
 }

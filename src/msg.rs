@@ -1,3 +1,4 @@
+use abstract_core::objects::AssetEntry;
 use chrono::NaiveTime;
 use cosmwasm_schema::QueryResponses;
 use cosmwasm_std::{Int64, Uint128};
@@ -25,7 +26,7 @@ impl From<Time> for NaiveTime {
 #[cosmwasm_schema::cw_serde]
 pub struct AppInstantiateMsg {
     pub price_per_minute: Uint128,
-    pub denom: String,
+    pub denom: AssetEntry,
     pub utc_offset: i32,
     pub start_time: Time,
     pub end_time: Time,
@@ -53,6 +54,10 @@ pub enum AppExecuteMsg {
         day_datetime: Int64,
         meeting_index: u32,
     },
+    UpdateConfig {
+        price_per_minute: Option<Uint128>,
+        denom: Option<AssetEntry>,
+    }
 }
 
 /// App query messages
