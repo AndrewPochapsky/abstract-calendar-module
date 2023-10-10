@@ -1,7 +1,9 @@
 use abstract_core::objects::AssetEntry;
 use abstract_sdk::features::AbstractResponse;
 use chrono::{DateTime, FixedOffset, LocalResult, NaiveTime, TimeZone, Timelike};
-use cosmwasm_std::{BankMsg, Coin, DepsMut, Env, Int64, MessageInfo, Response, Uint128, StdError, Deps};
+use cosmwasm_std::{
+    BankMsg, Coin, Deps, DepsMut, Env, Int64, MessageInfo, Response, StdError, Uint128,
+};
 use cw_asset::AssetInfoBase;
 use cw_utils::must_pay;
 
@@ -10,8 +12,8 @@ use crate::contract::{App, AppResult};
 use crate::error::AppError;
 use crate::msg::AppExecuteMsg;
 use crate::state::{Meeting, CALENDAR, CONFIG};
-use abstract_sdk::Resolve;
 use abstract_sdk::features::AbstractNameService;
+use abstract_sdk::Resolve;
 
 enum StakeAction {
     Return,
@@ -68,13 +70,12 @@ pub fn execute_handler(
             meeting_index,
             StakeAction::Return,
         ),
-        AppExecuteMsg::UpdateConfig { price_per_minute, denom } => {
-            update_config(deps, info, app, price_per_minute, denom)
-        }
+        AppExecuteMsg::UpdateConfig {
+            price_per_minute,
+            denom,
+        } => update_config(deps, info, app, price_per_minute, denom),
     }
 }
-
-
 
 fn request_meeting(
     deps: DepsMut,
@@ -264,7 +265,13 @@ fn handle_stake(
     Ok(response)
 }
 
-fn update_config(deps: DepsMut, info: MessageInfo, app: App, price_per_minute: Option<Uint128>, denom: Option<AssetEntry>) -> AppResult {
+fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    app: App,
+    price_per_minute: Option<Uint128>,
+    denom: Option<AssetEntry>,
+) -> AppResult {
     app.admin.assert_admin(deps.as_ref(), &info.sender)?;
     let mut config = CONFIG.load(deps.storage)?;
     if let Some(price_per_minute) = price_per_minute {

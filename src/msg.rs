@@ -57,7 +57,7 @@ pub enum AppExecuteMsg {
     UpdateConfig {
         price_per_minute: Option<Uint128>,
         denom: Option<AssetEntry>,
-    }
+    },
 }
 
 /// App query messages

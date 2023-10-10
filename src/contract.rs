@@ -3,7 +3,6 @@ use crate::{
     error::AppError,
     handlers,
     msg::{AppExecuteMsg, AppInstantiateMsg, AppQueryMsg},
-    replies::{self, INSTANTIATE_REPLY_ID},
 };
 use abstract_app::AppContract;
 use cosmwasm_std::Response;

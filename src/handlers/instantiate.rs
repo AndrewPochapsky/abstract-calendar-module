@@ -1,18 +1,15 @@
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdError};
-use cw_asset::AssetInfoBase;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response};
 
 use crate::contract::{App, AppResult};
 use crate::msg::AppInstantiateMsg;
 use crate::state::{Config, CONFIG};
-use abstract_sdk::Resolve;
-use abstract_sdk::features::AbstractNameService;
 
 use super::execute::resolve_native_ans_denom;
 
 pub fn instantiate_handler(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     app: App,
     msg: AppInstantiateMsg,
 ) -> AppResult {
