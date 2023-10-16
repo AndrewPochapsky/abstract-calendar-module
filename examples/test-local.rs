@@ -6,7 +6,7 @@
 //!
 //! `cargo run --example test-local`
 
-use abstract_core::objects::gov_type::GovernanceDetails;
+use abstract_core::objects::{gov_type::GovernanceDetails, AssetEntry};
 use abstract_interface::{Abstract, AppDeployer, VCExecFns};
 use app::{
     contract::{APP_ID, APP_VERSION},
@@ -63,7 +63,7 @@ fn main() -> anyhow::Result<()> {
         app,
         &AppInstantiateMsg {
             price_per_minute: Uint128::zero(),
-            denom: "ujunox".to_owned(),
+            denom: AssetEntry::from("juno>ujunox"),
             utc_offset: 0,
             start_time: Time { hour: 9, minute: 0 },
             end_time: Time {

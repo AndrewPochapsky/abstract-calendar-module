@@ -1,6 +1,10 @@
+use abstract_core::objects::AssetEntry;
 use abstract_sdk::features::AbstractResponse;
 use chrono::{DateTime, FixedOffset, LocalResult, NaiveTime, TimeZone, Timelike};
-use cosmwasm_std::{BankMsg, Coin, DepsMut, Env, Int64, MessageInfo, Response, Uint128};
+use cosmwasm_std::{
+    BankMsg, Coin, Deps, DepsMut, Env, Int64, MessageInfo, Response, StdError, Uint128,
+};
+use cw_asset::AssetInfoBase;
 use cw_utils::must_pay;
 
 use crate::contract::{App, AppResult};
@@ -8,6 +12,8 @@ use crate::contract::{App, AppResult};
 use crate::error::AppError;
 use crate::msg::AppExecuteMsg;
 use crate::state::{Meeting, CALENDAR, CONFIG};
+use abstract_sdk::features::AbstractNameService;
+use abstract_sdk::Resolve;
 
 enum StakeAction {
     Return,
@@ -64,6 +70,10 @@ pub fn execute_handler(
             meeting_index,
             StakeAction::Return,
         ),
+        AppExecuteMsg::UpdateConfig {
+            price_per_minute,
+            denom,
+        } => update_config(deps, info, app, price_per_minute, denom),
     }
 }
 
@@ -253,6 +263,39 @@ fn handle_stake(
     CALENDAR.save(deps.storage, day_datetime.i64(), &meetings)?;
 
     Ok(response)
+}
+
+fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    app: App,
+    price_per_minute: Option<Uint128>,
+    denom: Option<AssetEntry>,
+) -> AppResult {
+    app.admin.assert_admin(deps.as_ref(), &info.sender)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    let mut attrs = vec![];
+    if let Some(price_per_minute) = price_per_minute {
+        config.price_per_minute = price_per_minute;
+        attrs.push(("price_per_minute", price_per_minute.to_string()));
+    }
+    if let Some(unresolved) = denom {
+        let denom = resolve_native_ans_denom(deps.as_ref(), &app, unresolved.clone())?;
+        config.denom = denom;
+        attrs.push(("denom", unresolved.to_string()));
+    }
+    CONFIG.save(deps.storage, &config)?;
+    Ok(app.custom_tag_response(Response::new(), "update_config", attrs))
+}
+
+pub fn resolve_native_ans_denom(deps: Deps, app: &App, denom: AssetEntry) -> AppResult<String> {
+    let ans_host = app.ans_host(deps)?;
+    let resolved_denom = denom.resolve(&deps.querier, &ans_host)?;
+    let denom = match resolved_denom {
+        AssetInfoBase::Native(denom) => Ok(denom),
+        _ => Err(StdError::generic_err("Non-native denom not supported")),
+    }?;
+    Ok(denom)
 }
 
 fn get_date_time(timezone: FixedOffset, timestamp: Int64) -> AppResult<DateTime<FixedOffset>> {

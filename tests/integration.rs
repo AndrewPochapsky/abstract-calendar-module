@@ -1,4 +1,4 @@
-use abstract_core::objects::{gov_type::GovernanceDetails, AccountId};
+use abstract_core::objects::{gov_type::GovernanceDetails, AccountId, AssetEntry};
 use abstract_interface::{Abstract, AbstractAccount, AppDeployer, VCExecFns};
 use app::{
     contract::{APP_ID, APP_VERSION},
@@ -16,7 +16,7 @@ use cosmwasm_std::{coins, Addr, BlockInfo, Uint128};
 
 // consts for testing
 const ADMIN: &str = "admin";
-const DENOM: &str = "stake";
+const DENOM: &str = "juno>stake";
 
 const INITIAL_BALANCE: u128 = 10_000;
 
@@ -133,7 +133,7 @@ fn setup() -> anyhow::Result<(
         app.clone(),
         &AppInstantiateMsg {
             price_per_minute: Uint128::from(1u128),
-            denom: DENOM.to_owned(),
+            denom: AssetEntry::from(DENOM),
             utc_offset: 0,
             start_time: Time { hour: 9, minute: 0 },
             end_time: Time {
